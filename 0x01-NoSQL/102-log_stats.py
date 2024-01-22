@@ -1,48 +1,31 @@
 #!/usr/bin/env python3
-"""Provides some stats about Nginx logs stored in MongoDB"""
+"""log stats from collection
+"""
 from pymongo import MongoClient
-list_all = __import__('8-all').list_all
 
 
-if __name__ == '__main__':
-    client = MongoClient('mongodb://127.0.0.1:27017')
+METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
 
-    nginx_collection = client.logs.nginx
 
-    print("{} logs".format(nginx_collection.count_documents({})))
+def log_stats(mongo_collection, option=None):
+    """ script that provides some stats about Nginx logs stored in MongoDB
+    """
+    items = {}
+    if option:
+        value = mongo_collection.count_documents(
+            {"method": {"$regex": option}})
+        print(f"\tmethod {option}: {value}")
+        return
 
-    methods = ["GET", "POST", "PUT", "PATCH", "DELETE"]
+    result = mongo_collection.count_documents(items)
+    print(f"{result} logs")
     print("Methods:")
-    for method in methods:
-        count = nginx_collection.count_documents({"method": method})
-        print("\tmethod {}: {}".format(method, count))
+    for method in METHODS:
+        log_stats(nginx_collection, method)
+    status_check = mongo_collection.count_documents({"path": "/status"})
+    print(f"{status_check} status check")
 
 
-    count = nginx_collection.count_documents(
-        {"method": "GET", "path": "/status"}
-    )
-    print("{} status check".format(count))
-
-
-    top10_ips = nginx_collection.aggregate([
-        {"$group": {
-            "_id": "$ip",
-            "count": {"$sum": 1}
-        }},
-
-        {"$sort": {"count": -1}},
-        {"$limit": 10},
-
-        {"$project": {
-            "_id": 0,
-            "ip": "$_id",
-            "count": 1
-        }}
-    ])
-
-    print("IPs:")
-
-    for top_ip in top10_ips:
-        ip = top_ip.get('ip')
-        count = top_ip.get('count')
-        print("\t{}: {}".format(ip, count))
+if __name__ == "__main__":
+    nginx_collection = MongoClient('mongodb://127.0.0.1:27017').logs.nginx
+    log_stats(nginx_collection)
