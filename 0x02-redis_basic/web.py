@@ -1,40 +1,32 @@
 #!/usr/bin/env python3
-"""Implementing an expiring web cache and tracker"""
+"""
+In this tasks, we will implement a get_page function
+(prototype: def get_page(url: str) -> str:). The core of the function
+is very simple. It uses the requests module to obtain the HTML
+content of a particular URL and returns it
+"""
 import requests
 import redis
-from functools import wraps
-from typing import Callable
 
 
-_redis = redis.Redis()
+r = redis.Redis()
 
 
-def count_request(method: Callable) -> Callable:
-    """Count number of request sent to a URL"""
-
-    @wraps(method)
-    def wrapper(url):
-        """Wrapper function for decorator"""
-
-        key = "count:{}".format(url)
-        value = "cached:{}".format(url)
-
-        _redis.incr(key)
-        cache = _redis.get(value)
-
-        if cache:
-            return cache.decode('utf-8')
-
-        html = method(url)
-        _redis.set(key, 0)
-        _redis.setex(value, 10, html)
+def get_page(url: str) -> str:
+    """
+    Inside get_page track how many times a particular URL was
+    accessed in the key count:{url} and cache the result with
+    an expiration time of 10 seconds
+    """
+    html = r.get(url)
+    if html:
+        return html.decode('utf-8')
+    else:
+        response = requests.get(url)
+        html = response.text
+        r.set(url, html, ex=10)
         return html
 
-    return wrapper
 
-
-@count_request
-def get_page(url: str) -> str:
-    """Obtain HTML content through URL"""
-    res = requests.get(url)
-    return res.text
+if __name__ == "__main__":
+    get_page("http://slowwly.robertomurray.co.uk")
